@@ -59,6 +59,7 @@ export const IlamyCalendar: React.FC<IlamyCalendarProps> = ({
 	firstDayOfWeek = 'sunday',
 	initialView = 'month',
 	initialDate,
+	dateEventType = 'Dayjs',
 	dayMaxEvents = DAY_MAX_EVENTS_DEFAULT,
 	eventSpacing = GAP_BETWEEN_ELEMENTS,
 	eventHeight = EVENT_BAR_HEIGHT,
@@ -71,6 +72,7 @@ export const IlamyCalendar: React.FC<IlamyCalendarProps> = ({
 }) => {
 	return (
 		<CalendarProvider
+			dateEventType={dateEventType}
 			dayMaxEvents={dayMaxEvents}
 			eventHeight={eventHeight}
 			eventSpacing={eventSpacing}
