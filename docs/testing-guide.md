@@ -186,9 +186,51 @@ const modifiedInstance = {
 EXDATE verification — check that deleted occurrences appear in `exdates[]`:
 
 ```typescript
-const updatedEvents = deleteRecurringEvent({ targetEvent, currentEvents, scope: 'this' })
-const baseEvent = updatedEvents.find(e => e.rrule)
-expect(baseEvent.exdates).toContain('2025-01-13T10:00:00.000Z')
+const { events, updatedRecurringEvent } = deleteRecurringEvent({
+  targetEvent,
+  currentEvents,
+  scope: 'this',
+})
+expect(updatedRecurringEvent?.exdates).toContain('2025-01-13T10:00:00.000Z')
+```
+
+Scope `this` edit (generated instance) — base update + new override:
+
+```typescript
+const onEventUpdate = mock(() => {})
+const onEventAdd = mock(() => {})
+// ... updateRecurringEvent(generatedInstance, updates, { scope: 'this' })
+expect(onEventUpdate).toHaveBeenCalledTimes(1)
+expect(onEventUpdate.mock.calls[0][0].id).toBe('weekly-1') // base id
+expect(onEventUpdate.mock.calls[0][0].exdates).toContain('2025-01-13T10:00:00.000Z')
+expect(onEventAdd).toHaveBeenCalledTimes(1)
+expect(onEventAdd.mock.calls[0][0].id).toMatch(/^weekly-1_modified_/)
+expect(onEventAdd.mock.calls[0][0].recurrenceId).toBeDefined()
+expect(onEventAdd.mock.calls[0][0].rrule).toBeUndefined()
+```
+
+Scope `following` edit — terminate original base, add new series:
+
+```typescript
+expect(onEventUpdate).toHaveBeenCalledTimes(1)
+expect(onEventUpdate.mock.calls[0][0].id).toBe('weekly-1')
+expect(onEventUpdate.mock.calls[0][0].rrule?.until).toBeDefined()
+expect(onEventAdd).toHaveBeenCalledTimes(1)
+expect(onEventAdd.mock.calls[0][0].id).toBe('weekly-1_following')
+expect(onEventAdd.mock.calls[0][0].rrule).toBeDefined()
+```
+
+Scope `all` edit — one `onEventUpdate` on base; overrides removed from state, not deleted via callback:
+
+```typescript
+const onEventUpdate = mock(() => {})
+const onEventDelete = mock(() => {})
+// ... calendar with base + override (override: same uid, no rrule, recurrenceId set)
+// ... updateRecurringEvent(..., scope: 'all')
+expect(onEventUpdate).toHaveBeenCalledTimes(1)
+expect(onEventUpdate.mock.calls[0][0].rrule).toBeDefined()
+expect(onEventDelete).not.toHaveBeenCalled()
+// Consumer: delete DB rows where uid === seriesUid && !rrule
 ```
 
 ## Mocking

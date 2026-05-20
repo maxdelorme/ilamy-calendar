@@ -533,8 +533,26 @@ updateRecurringEvent({
   currentEvents: events,
   scope: 'all',
 })
-// Result: Base recurring event updated
+// Result: { events, updated: [base], added: [] }
+// - Base row updated (rrule, uid, exdates cleared)
+// - Detached overrides (same uid, no rrule) removed from .events only
+// - onEventUpdate fires once for the base — NOT onEventDelete per override
 ````
+
+#### `onEventUpdate` / `onEventAdd` — recurring edits (calendar props)
+
+| Scope | `onEventUpdate` | `onEventAdd` |
+|-------|-----------------|--------------|
+| **`this`** (generated instance) | Base row — new/updated `exdates[]` | Detached override — `{baseId}_modified_*`, `recurrenceId`, no `rrule`, series `uid` |
+| **`this`** (stored override) | Override row only (in place) | — |
+| **`following`** | Original base — `rrule.until` set | New base — `{baseId}_following`, new `uid`, `rrule` |
+| **`all`** | Base row only — `rrule`, `uid`, `exdates` cleared | — |
+
+**Scope `this`:** Editing one occurrence excludes it from the series (EXDATE on base) and stores the exception as an override. First edit from a generated instance notifies **base + new override**; editing again notifies **only the override** (same persisted `id`).
+
+**Scope `following`:** Splits the series: persist the **UNTIL** change on the original base, then **insert** the new `{baseId}_following` row as a separate recurring series (new `uid`).
+
+**Scope `all`:** Replaces the whole series with one base row. Overrides (`recurrenceId`, no `rrule`, same `uid`) leave library state without `onEventDelete` — delete those rows in your backend when handling the base `onEventUpdate`.
 
 #### Google Calendar-Style Delete Operations:
 

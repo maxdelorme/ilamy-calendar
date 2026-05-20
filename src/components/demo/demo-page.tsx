@@ -171,15 +171,15 @@ const handleDateClick = (info: CellClickInfo) => {
 }
 
 const handleEventAdd = (event: CalendarEvent) => {
-	alert(`Event added: ${event.title}`)
+	console.log('Event added:', event)
 }
 
 const handleEventUpdate = (event: CalendarEvent) => {
-	alert(`Event updated: ${event.title}`)
+	console.log('Event updated:', event)
 }
 
 const handleEventDelete = (event: CalendarEvent) => {
-	alert(`Event deleted: ${event.title}`)
+	console.log('Event deleted:', event)
 }
 
 // Demo resources

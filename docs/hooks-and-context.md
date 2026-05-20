@@ -105,6 +105,16 @@ Core engine hook used by both providers. Manages all shared state:
 - Translation (`t()` function)
 - Locale/timezone management
 
+#### Recurring edit → `onEventUpdate` / `onEventAdd`
+
+`updateRecurringEvent` returns `{ events, updated, added }`; the engine calls `onEventUpdate` for each `updated` row and `onEventAdd` for each `added` row (stored ids only).
+
+**Scope `this`:** From a **generated** occurrence → `onEventUpdate` (base + EXDATE) + `onEventAdd` (new `{baseId}_modified_*` override with `recurrenceId`, no `rrule`). From an existing **override** → `onEventUpdate` (that override only).
+
+**Scope `following`:** `onEventUpdate` (original base with `rrule.until`) + `onEventAdd` (new `{baseId}_following` base with its own `uid` and `rrule`).
+
+**Scope `all`:** `onEventUpdate` once (base with `rrule` + `uid`, overrides removed from state). No `onEventDelete` for overrides — purge DB rows with same `uid` and no `rrule` when handling the update.
+
 ### useProcessedDayEvents()
 
 `src/features/calendar/hooks/useProcessedDayEvents.ts`

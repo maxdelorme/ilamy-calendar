@@ -244,12 +244,21 @@ interface UpdateRecurringEventProps {
 	scope: 'this' | 'following' | 'all'
 }
 
+/** Stored events changed by `updateRecurringEvent` — for persistence callbacks. */
+export interface RecurringUpdateResult {
+	events: CalendarEvent[]
+	/** Existing rows to persist via `onEventUpdate` (e.g. base + EXDATE). */
+	updated: CalendarEvent[]
+	/** New rows to persist via `onEventAdd` (e.g. detached override, split series). */
+	added: CalendarEvent[]
+}
+
 export const updateRecurringEvent = ({
 	targetEvent,
 	updates,
 	currentEvents,
 	scope,
-}: UpdateRecurringEventProps): CalendarEvent[] => {
+}: UpdateRecurringEventProps): RecurringUpdateResult => {
 	const updatedEvents = [...currentEvents]
 	const baseEventIndex = findBaseEventIndex(updatedEvents, targetEvent)
 	const baseEvent = updatedEvents[baseEventIndex]
@@ -258,7 +267,7 @@ export const updateRecurringEvent = ({
 		case 'this': {
 			// "This event only" - EXDATE on base + detached override for this occurrence.
 			// Generated instance: add a new override row. Stored override: update in place.
-			const parentUid = getEventParentUID(baseEvent)
+			const seriesUid = getEventParentUID(baseEvent)
 			const isOverrideEvent = Boolean(
 				targetEvent.recurrenceId && !targetEvent.rrule
 			)
@@ -276,6 +285,7 @@ export const updateRecurringEvent = ({
 			updatedEvents[baseEventIndex] = {
 				...baseEvent,
 				exdates: nextExdates,
+				uid: seriesUid,
 			}
 
 			const detachedOverride: CalendarEvent = {
@@ -283,8 +293,8 @@ export const updateRecurringEvent = ({
 				...omitKeys(targetEvent, ['width', 'height', 'top', 'left', 'right']),
 				...updates,
 				recurrenceId,
-				uid: parentUid,
 				rrule: undefined,
+				uid: seriesUid,
 			} as CalendarEvent
 
 			if (isOverrideEvent) {
@@ -295,15 +305,25 @@ export const updateRecurringEvent = ({
 					throw new Error('Detached override not found')
 				}
 				updatedEvents[overrideIndex] = detachedOverride
-			} else {
-				const modifiedEventId = `${targetEvent.id}_modified_${Date.now()}`
-				updatedEvents.push({
-					...detachedOverride,
-					id: modifiedEventId,
-				})
+				return {
+					events: updatedEvents,
+					updated: [detachedOverride],
+					added: [],
+				}
 			}
 
-			return updatedEvents
+			const updatedBaseEvent = updatedEvents[baseEventIndex]
+			const modifiedEventId = `${baseEvent.id}_modified_${Date.now()}`
+			const modifiedEvent: CalendarEvent = {
+				...detachedOverride,
+				id: modifiedEventId,
+			}
+			updatedEvents.push(modifiedEvent)
+			return {
+				events: updatedEvents,
+				updated: [updatedBaseEvent],
+				added: [modifiedEvent],
+			}
 		}
 
 		case 'following': {
@@ -343,12 +363,17 @@ export const updateRecurringEvent = ({
 				recurrenceId: undefined, // This is a new base event, not an instance
 			}
 			updatedEvents.push(newSeriesEvent)
-			break
+			return {
+				events: updatedEvents,
+				updated: [terminatedEvent],
+				added: [newSeriesEvent],
+			}
 		}
 
 		case 'all': {
 			// "All events" - Update the base recurring event (anchor dates, not instance day)
 			const parentUid = getEventParentUID(baseEvent)
+			const seriesUid = getEventParentUID(baseEvent)
 
 			const anchored = applyAllScopeUpdates(baseEvent, updates)
 			updatedEvents[baseEventIndex] = {
@@ -358,12 +383,18 @@ export const updateRecurringEvent = ({
 				end: anchored.end,
 				rrule: anchored.rrule,
 				exdates: undefined,
+				uid: seriesUid,
 			}
 
-			return updatedEvents.filter(
+			const events = updatedEvents.filter(
 				(e) =>
 					!(e.recurrenceId && !e.rrule && getEventParentUID(e) === parentUid)
 			)
+			return {
+				events,
+				updated: [updatedEvents[baseEventIndex]],
+				added: [],
+			}
 		}
 
 		default:
@@ -371,8 +402,6 @@ export const updateRecurringEvent = ({
 				`Invalid scope: ${scope}. Must be 'this', 'following', or 'all'`
 			)
 	}
-
-	return updatedEvents
 }
 
 interface DeleteRecurringEventProps {

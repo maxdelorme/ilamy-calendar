@@ -110,6 +110,29 @@ Core logic in `src/features/recurrence/utils/recurrence-handler.ts`:
 
 Every event must have a globally unique `uid`. EXDATE uses ISO strings in `exdates[]`.
 
+#### Persistence callbacks (recurring edit)
+
+`updateRecurringEvent` returns `{ events, updated, added }`. The engine calls `onEventUpdate` for each row in `updated` and `onEventAdd` for each row in `added` — always **stored** rows, never synthetic instance ids (`series_1_3`).
+
+**Edit scope `this` (first edit on a generated occurrence):**
+- Adds an EXDATE on the base (occurrence key = `targetEvent.start` ISO string).
+- Creates a detached override (`recurrenceId`, no `rrule`, same series `uid` as base).
+- Callbacks: **`onEventUpdate`** — base row with updated `exdates[]`; **`onEventAdd`** — new override (`{baseId}_modified_*`).
+
+**Edit scope `this` (re-edit an existing stored override):**
+- Updates that override row in place (same `id`, same `recurrenceId` anchor).
+- Callbacks: **`onEventUpdate` once** — override row only (not the base, not `onEventAdd`).
+
+**Edit scope `following`:**
+- Terminates the original base series with `rrule.until` (day before the target occurrence).
+- Appends a new base series `{baseId}_following` with a **new** `uid` (`{baseId}_following@ilamy.calendar`).
+- Callbacks: **`onEventUpdate`** — original base with UNTIL; **`onEventAdd`** — new following-series base (`rrule`, no `recurrenceId`).
+
+**Edit scope `all`:**
+- Collapses the series to one updated base (`rrule`, series `uid`, `exdates` cleared); removes detached overrides from library `events`.
+- Callbacks: **`onEventUpdate` once** — base only. **`onEventDelete` is not called** for overrides.
+- **Consumer responsibility:** remove orphaned overrides in your store (same series `uid`, no `rrule`) when handling that base update.
+
 ### i18n
 
 `CalendarProvider` handles translations. Props: `translations?: Translations` or `translator?: TranslatorFunction`. Falls back to English. All components access via `useIlamyCalendarContext().t()`. 94 translation keys. See `docs/translation-usage.md` for full details.

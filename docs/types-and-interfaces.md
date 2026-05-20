@@ -96,8 +96,8 @@ Top-level props for `<IlamyCalendar>`. Key props summarized below — see source
 | `onEventClick` | `(event) => void` | — | Event click callback |
 | `onCellClick` | `(info: CellClickInfo) => void` | — | Cell click callback |
 | `onViewChange` | `(view) => void` | — | View change callback |
-| `onEventAdd` | `(event) => void` | — | Event add callback |
-| `onEventUpdate` | `(event) => void` | — | Event update callback |
+| `onEventAdd` | `(event) => void` | — | Event add callback. Recurring edits: **`this`** (generated) → new `{baseId}_modified_*` override; **`following`** → new `{baseId}_following` base series. |
+| `onEventUpdate` | `(event) => void` | — | Event update callback. Recurring edits: **`this`** (generated) → base + EXDATE; **`this`** (stored override) → override only; **`following`** → original base + UNTIL; **`all`** → base only (purge overrides in your store: same `uid`, no `rrule`). |
 | `onEventDelete` | `(event) => void` | — | Event delete callback |
 | `onDateChange` | `(date: Dayjs, range: { start: Dayjs; end: Dayjs }) => void` | — | Date navigation callback |
 | `locale` | `string` | — | dayjs locale |
