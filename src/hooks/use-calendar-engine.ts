@@ -279,16 +279,26 @@ export const useCalendarEngine = (
 
 	const deleteRecurringEvent = useCallback(
 		(event: CalendarEvent, options: RecurrenceEditOptions) => {
-			onEventDelete?.(event)
-			setCurrentEvents(
-				deleteRecurringEventImpl({
-					targetEvent: event,
-					currentEvents,
-					scope: options.scope,
-				})
-			)
+			const {
+				events: nextEvents,
+				updatedRecurringEvent,
+				deletedEvents,
+			} = deleteRecurringEventImpl({
+				targetEvent: event,
+				currentEvents,
+				scope: options.scope,
+			})
+
+			for (const storedEvent of deletedEvents ?? []) {
+				onEventDelete?.(storedEvent)
+			}
+			if (updatedRecurringEvent) {
+				onEventUpdate?.(updatedRecurringEvent)
+			}
+
+			setCurrentEvents(nextEvents)
 		},
-		[currentEvents, onEventDelete]
+		[currentEvents, onEventDelete, onEventUpdate]
 	)
 
 	const deleteEvent = useCallback(

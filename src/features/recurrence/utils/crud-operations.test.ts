@@ -657,12 +657,45 @@ describe('updateRecurringEvent', () => {
 
 describe('deleteRecurringEvent', () => {
 	describe('scope: "this"', () => {
+		it('should remove stored override without changing base EXDATEs when deleting detached override', () => {
+			const occurrenceISO = '2025-01-20T09:00:00.000Z'
+			const baseEvent = createBaseRecurringEvent({
+				exdates: [occurrenceISO],
+			})
+			const overrideEvent: CalendarEvent = {
+				...baseEvent,
+				id: 'recurring-1_modified',
+				start: dayjs('2025-01-20T10:00:00'),
+				end: dayjs('2025-01-20T11:00:00'),
+				recurrenceId: occurrenceISO,
+				rrule: undefined,
+			}
+
+			const {
+				events: result,
+				deletedEvents,
+				updatedRecurringEvent,
+			} = deleteRecurringEvent({
+				targetEvent: overrideEvent,
+				currentEvents: [baseEvent, overrideEvent],
+				scope: 'this',
+			})
+
+			expect(result).toHaveLength(1)
+			expect(result[0].id).toBe('recurring-1')
+			expect(result[0].exdates).toEqual([occurrenceISO])
+			expect(deletedEvents?.map((event) => event.id)).toEqual([
+				'recurring-1_modified',
+			])
+			expect(updatedRecurringEvent).toBeUndefined()
+		})
+
 		it('should add EXDATE to exclude only target occurrence', () => {
 			const baseEvent = createBaseRecurringEvent()
 			const targetEvent = createTargetEvent()
 			const currentEvents = [baseEvent]
 
-			const result = deleteRecurringEvent({
+			const { events: result } = deleteRecurringEvent({
 				targetEvent,
 				currentEvents,
 				scope: 'this',
@@ -683,7 +716,7 @@ describe('deleteRecurringEvent', () => {
 			const targetEvent = createTargetEvent()
 			const currentEvents = [baseEvent]
 
-			const result = deleteRecurringEvent({
+			const { events: result } = deleteRecurringEvent({
 				targetEvent,
 				currentEvents,
 				scope: 'this',
@@ -703,7 +736,7 @@ describe('deleteRecurringEvent', () => {
 			const targetEvent = createTargetEvent()
 			const currentEvents = [baseEvent]
 
-			const result = deleteRecurringEvent({
+			const { events: result } = deleteRecurringEvent({
 				targetEvent,
 				currentEvents,
 				scope: 'following',
@@ -727,7 +760,7 @@ describe('deleteRecurringEvent', () => {
 			}
 			const currentEvents = [baseEvent]
 
-			const result = deleteRecurringEvent({
+			const { events: result } = deleteRecurringEvent({
 				targetEvent: firstOccurrence,
 				currentEvents,
 				scope: 'following',
@@ -753,7 +786,7 @@ describe('deleteRecurringEvent', () => {
 			const targetEvent = createTargetEvent()
 			const currentEvents = [baseEvent]
 
-			const result = deleteRecurringEvent({
+			const { events: result } = deleteRecurringEvent({
 				targetEvent,
 				currentEvents,
 				scope: 'following',
@@ -778,7 +811,7 @@ describe('deleteRecurringEvent', () => {
 			const targetEvent = createTargetEvent()
 			const currentEvents = [baseEvent, otherEvent]
 
-			const result = deleteRecurringEvent({
+			const { events: result } = deleteRecurringEvent({
 				targetEvent,
 				currentEvents,
 				scope: 'all',
@@ -796,7 +829,7 @@ describe('deleteRecurringEvent', () => {
 			const targetEvent = createTargetEvent()
 			const currentEvents = [baseEvent]
 
-			const result = deleteRecurringEvent({
+			const { events: result } = deleteRecurringEvent({
 				targetEvent,
 				currentEvents,
 				scope: 'all',
@@ -824,7 +857,7 @@ describe('deleteRecurringEvent', () => {
 			const currentEvents = [baseEvent, override1, override2, otherEvent]
 			const targetEvent = createTargetEvent()
 
-			const result = deleteRecurringEvent({
+			const { events: result } = deleteRecurringEvent({
 				targetEvent,
 				currentEvents,
 				scope: 'all',
@@ -947,7 +980,7 @@ describe('Edge cases and stress tests', () => {
 		expect(currentEvents).toHaveLength(2) // base + modified
 
 		// Then delete the same occurrence
-		const finalResult = deleteRecurringEvent({
+		const { events: finalResult } = deleteRecurringEvent({
 			targetEvent,
 			currentEvents,
 			scope: 'this',

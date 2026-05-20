@@ -115,6 +115,19 @@ Core engine hook used by both providers. Manages all shared state:
 
 **Scope `all`:** `onEventUpdate` once (base with `rrule` + `uid`, overrides removed from state). No `onEventDelete` for overrides — purge DB rows with same `uid` and no `rrule` when handling the update.
 
+#### Recurring delete → `onEventAdd` / `onEventUpdate` / `onEventDelete`
+
+`deleteRecurringEvent` in the handler returns `{ events, updatedRecurringEvent?, deletedEvents? }`. The engine applies `events` to state, then invokes props:
+
+| Scope | Prop fired | What you receive |
+|-------|------------|------------------|
+| `this` (generated instance) | `onEventUpdate` | Base series row with new `exdates[]` entry |
+| `this` (detached override) | `onEventDelete` | That override row only; base `exdates` unchanged |
+| `following` | `onEventUpdate` | Base series row with `rrule.until` set |
+| **`all`** | **`onEventDelete` (once)** | **Base series row only** |
+
+**Deleting the whole series (`scope: 'all'`):** The library calls `onEventDelete` **exactly once**. The payload is the stored **base** event: it has `rrule`, no `recurrenceId`, and identifies the series via `uid` (explicit `event.uid` or derived `{id}@ilamy.calendar`). It is **your** job to delete the entire series in persistent storage from that row — including any detached overrides (`recurrenceId`, no `rrule`) you may have saved under the same `uid`. Those overrides are stripped from the calendar’s in-memory `events` but are not sent as separate delete callbacks. Clicking a generated instance (`id` like `series_1_2`) still yields the base `id` and series `uid` on `onEventDelete`.
+
 ### useProcessedDayEvents()
 
 `src/features/calendar/hooks/useProcessedDayEvents.ts`

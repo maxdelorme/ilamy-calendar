@@ -105,7 +105,7 @@ Uses `rrule.js` with strict RFC 5545 compliance. Three event types:
 Core logic in `src/features/recurrence/utils/recurrence-handler.ts`:
 - `generateRecurringEvents()` — create instances from rrule
 - `updateRecurringEvent()` — scoped updates (this/following/all) with EXDATE
-- `deleteRecurringEvent()` — scoped deletions
+- `deleteRecurringEvent()` — scoped deletions (see **Persistence callbacks** below).
 - `isRecurringEvent()` — identify base vs instance
 
 Every event must have a globally unique `uid`. EXDATE uses ISO strings in `exdates[]`.
@@ -132,6 +132,19 @@ Every event must have a globally unique `uid`. EXDATE uses ISO strings in `exdat
 - Collapses the series to one updated base (`rrule`, series `uid`, `exdates` cleared); removes detached overrides from library `events`.
 - Callbacks: **`onEventUpdate` once** — base only. **`onEventDelete` is not called** for overrides.
 - **Consumer responsibility:** remove orphaned overrides in your store (same series `uid`, no `rrule`) when handling that base update.
+
+#### Persistence callbacks (recurring delete)
+
+| Scope | Callback | Payload |
+|-------|----------|---------|
+| `this` (generated instance) | `onEventUpdate` | Base row with new EXDATE |
+| `this` (detached override) | `onEventDelete` | Override row only |
+| `following` | `onEventUpdate` | Base row with UNTIL |
+| `all` | **`onEventDelete` once** | **Base series row only** |
+
+For scope **`all`**, the library fires **one** `onEventDelete`, not one per override. The event is the stored **base** row: it has `rrule`, no `recurrenceId`, and a series `uid` (`event.uid` or `{id}@ilamy.calendar` from `getEventParentUID`). Detached overrides are removed from in-memory `events` but are **not** passed to `onEventDelete`.
+
+**Consumer responsibility:** delete the whole recurring series in your backend when you receive that single callback — match by base `id` and/or `uid`. If you persisted detached overrides (`recurrenceId`, no `rrule`), remove them as part of the same series delete; the calendar does not emit separate delete callbacks for them.
 
 ### i18n
 
@@ -234,4 +247,3 @@ docs/
 5. Wait for explicit approval
 6. Commit with conventional prefix (`feat:`, `fix:`, `docs:`, etc.), max 100 chars
 7. Ask before pushing
-

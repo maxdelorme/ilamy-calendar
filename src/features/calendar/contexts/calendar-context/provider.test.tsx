@@ -356,9 +356,9 @@ describe('CalendarProvider - findParentRecurringEvent', () => {
 	})
 
 	it('should call regular callbacks for recurring event operations', () => {
-		const onEventUpdate = mock(() => {})
-		const onEventAdd = mock(() => {})
-		const onEventDelete = mock(() => {})
+		const onEventUpdate = mock((_event: CalendarEvent) => {})
+		const onEventAdd = mock((_event: CalendarEvent) => {})
+		const onEventDelete = mock((_event: CalendarEvent) => {})
 
 		const recurringEvent: CalendarEvent = {
 			id: 'weekly-meeting',
@@ -440,14 +440,21 @@ describe('CalendarProvider - findParentRecurringEvent', () => {
 			})
 		)
 
-		// Test deleting recurring event - should call onEventDelete with the event
+		// Scoped delete "this" mutates EXDATE on the base row — same persistence path as update
 		getByTestId('delete-recurring').click()
-		expect(onEventDelete).toHaveBeenCalledWith(recurringEvent)
+		expect(onEventDelete).not.toHaveBeenCalled()
+		expect(onEventUpdate).toHaveBeenCalledTimes(2)
+		const deleteScopedPayload = onEventUpdate.mock.calls[1]?.[0] as
+			| CalendarEvent
+			| undefined
+		expect(deleteScopedPayload).toBeDefined()
+		expect(deleteScopedPayload?.id).toBe('weekly-meeting')
+		expect(deleteScopedPayload?.exdates).toContain('2025-01-06T10:00:00.000Z')
 	})
 
 	it('should call onEventUpdate for rrule changes', () => {
-		const onEventUpdate = mock(() => {})
-		const onEventAdd = mock(() => {})
+		const onEventUpdate = mock((_event: CalendarEvent) => {})
+		const onEventAdd = mock((_event: CalendarEvent) => {})
 
 		const recurringEvent: CalendarEvent = {
 			id: 'daily-standup',
@@ -518,8 +525,8 @@ describe('CalendarProvider - findParentRecurringEvent', () => {
 	})
 
 	it('should call onEventUpdate for time/date changes in recurring events', () => {
-		const onEventUpdate = mock(() => {})
-		const onEventAdd = mock(() => {})
+		const onEventUpdate = mock((_event: CalendarEvent) => {})
+		const onEventAdd = mock((_event: CalendarEvent) => {})
 
 		const recurringEvent: CalendarEvent = {
 			id: 'team-meeting',

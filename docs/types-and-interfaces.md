@@ -98,7 +98,7 @@ Top-level props for `<IlamyCalendar>`. Key props summarized below — see source
 | `onViewChange` | `(view) => void` | — | View change callback |
 | `onEventAdd` | `(event) => void` | — | Event add callback. Recurring edits: **`this`** (generated) → new `{baseId}_modified_*` override; **`following`** → new `{baseId}_following` base series. |
 | `onEventUpdate` | `(event) => void` | — | Event update callback. Recurring edits: **`this`** (generated) → base + EXDATE; **`this`** (stored override) → override only; **`following`** → original base + UNTIL; **`all`** → base only (purge overrides in your store: same `uid`, no `rrule`). |
-| `onEventDelete` | `(event) => void` | — | Event delete callback |
+| `onEventDelete` | `(event) => void` | — | Event delete callback. For recurring **scope `all`**, fired **once** with the base series row (`rrule` + `uid`); delete the whole series in your store by that `id`/`uid` (overrides are not notified separately). Scoped `this`/`following` deletes use `onEventUpdate` on the base instead. |
 | `onDateChange` | `(date: Dayjs, range: { start: Dayjs; end: Dayjs }) => void` | — | Date navigation callback |
 | `locale` | `string` | — | dayjs locale |
 | `timezone` | `string` | — | dayjs timezone |

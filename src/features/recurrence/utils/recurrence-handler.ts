@@ -410,25 +410,57 @@ interface DeleteRecurringEventProps {
 	scope: 'this' | 'following' | 'all'
 }
 
+/** Result of applying a scoped recurring delete to stored events. */
+export interface DeleteRecurringEventResult {
+	events: CalendarEvent[]
+	/**
+	 * The persisted base series row after EXDATE / UNTIL changes.
+	 * Present for scopes `this` and `following` (not for `all`, which removes rows).
+	 */
+	updatedRecurringEvent?: CalendarEvent
+	/**
+	 * Rows to notify via `onEventDelete`: scope `all` → base series only; scope `this` on a detached override → that override.
+	 */
+	deletedEvents?: CalendarEvent[]
+}
+
 export const deleteRecurringEvent = ({
 	targetEvent,
 	currentEvents,
 	scope,
-}: DeleteRecurringEventProps): CalendarEvent[] => {
+}: DeleteRecurringEventProps): DeleteRecurringEventResult => {
 	const updatedEvents = [...currentEvents]
 	const baseEventIndex = findBaseEventIndex(updatedEvents, targetEvent)
 	const baseEvent = updatedEvents[baseEventIndex]
 
 	switch (scope) {
 		case 'this': {
-			// "This event only" - Add EXDATE to exclude this occurrence
+			const isOverrideEvent = Boolean(
+				targetEvent.recurrenceId && !targetEvent.rrule
+			)
+
+			if (isOverrideEvent) {
+				// Detached override: remove only the override row; base EXDATEs stay unchanged.
+				const eventsWithoutOverride = updatedEvents.filter(
+					(event) => event.id !== targetEvent.id
+				)
+				return {
+					events: eventsWithoutOverride,
+					deletedEvents: [targetEvent],
+				}
+			}
+
+			// Generated instance: add EXDATE to exclude this occurrence.
 			const targetEventStartISO = targetEvent.start.toISOString()
 			const existingExdates = baseEvent.exdates || []
 			const updatedExdates = [...existingExdates, targetEventStartISO]
 
 			const updatedBaseEvent = { ...baseEvent, exdates: updatedExdates }
 			updatedEvents[baseEventIndex] = updatedBaseEvent
-			break
+			return {
+				events: updatedEvents,
+				updatedRecurringEvent: updatedBaseEvent,
+			}
 		}
 
 		case 'following': {
@@ -441,16 +473,23 @@ export const deleteRecurringEvent = ({
 				} as RRuleOptions,
 			}
 			updatedEvents[baseEventIndex] = terminatedEvent
-			break
+			return {
+				events: updatedEvents,
+				updatedRecurringEvent: terminatedEvent,
+			}
 		}
 
 		case 'all': {
-			// "All events" - Remove the entire recurring series
-			const targetUid = getEventParentUID(targetEvent)
+			// "All events" - Remove the entire recurring series from state; notify delete for base only.
+			const seriesUid = getEventParentUID(baseEvent)
+			const deletedBaseEvent: CalendarEvent = { ...baseEvent, uid: seriesUid }
 			const eventsWithoutTargetSeries = updatedEvents.filter(
-				(e) => getEventParentUID(e) !== targetUid
+				(event) => getEventParentUID(event) !== seriesUid
 			)
-			return eventsWithoutTargetSeries
+			return {
+				events: eventsWithoutTargetSeries,
+				deletedEvents: [deletedBaseEvent],
+			}
 		}
 
 		default:
@@ -458,6 +497,4 @@ export const deleteRecurringEvent = ({
 				`Invalid scope: ${scope}. Must be 'this', 'following', or 'all'`
 			)
 	}
-
-	return updatedEvents
 }

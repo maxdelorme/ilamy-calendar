@@ -48,7 +48,12 @@ describe('recurrence-handler utility tests', () => {
 				scope: 'all',
 			})
 
-			expect(result).toHaveLength(0)
+			expect(result.events).toHaveLength(0)
+			expect(result.updatedRecurringEvent).toBeUndefined()
+			expect(result.deletedEvents?.map((event) => event.id)).toEqual([
+				'series-1',
+			])
+			expect(result.deletedEvents?.[0].uid).toBe('series-1@ilamy.calendar')
 		})
 
 		it('should delete entire series (scope: all) when uid is explicitly set', () => {
@@ -72,7 +77,48 @@ describe('recurrence-handler utility tests', () => {
 				scope: 'all',
 			})
 
-			expect(result).toHaveLength(0)
+			expect(result.events).toHaveLength(0)
+			expect(result.updatedRecurringEvent).toBeUndefined()
+			expect(result.deletedEvents?.map((event) => event.id)).toEqual([
+				'series-2',
+			])
+			expect(result.deletedEvents?.[0].uid).toBe('custom-uid')
+		})
+
+		it('should remove all series rows from state but only return base for scope all delete callback', () => {
+			const baseEvent = createBaseRecurringEvent({
+				id: 'series-with-override',
+				uid: 'custom-uid',
+			})
+			const overrideEvent: CalendarEvent = {
+				...baseEvent,
+				id: 'series-with-override_modified',
+				start: baseEvent.start.add(1, 'week').add(1, 'hour'),
+				end: baseEvent.end.add(1, 'week').add(1, 'hour'),
+				recurrenceId: baseEvent.start.add(1, 'week').toISOString(),
+				rrule: undefined,
+			}
+			const otherEvent = createBaseRecurringEvent({
+				id: 'other-series',
+				uid: 'other-uid',
+			})
+			const targetInstance: CalendarEvent = {
+				...baseEvent,
+				id: 'series-with-override_0',
+				rrule: undefined,
+			}
+
+			const result = deleteRecurringEvent({
+				targetEvent: targetInstance,
+				currentEvents: [baseEvent, overrideEvent, otherEvent],
+				scope: 'all',
+			})
+
+			expect(result.events).toHaveLength(1)
+			expect(result.events[0].id).toBe('other-series')
+			expect(result.deletedEvents).toHaveLength(1)
+			expect(result.deletedEvents?.[0].id).toBe('series-with-override')
+			expect(result.deletedEvents?.[0].uid).toBe('custom-uid')
 		})
 
 		it('should only delete this instance (scope: this) and update exdates', () => {
@@ -93,8 +139,46 @@ describe('recurrence-handler utility tests', () => {
 				scope: 'this',
 			})
 
-			expect(result).toHaveLength(1)
-			expect(result[0].exdates).toContain(targetInstance.start.toISOString())
+			expect(result.events).toHaveLength(1)
+			expect(result.events[0].exdates).toContain(
+				targetInstance.start.toISOString()
+			)
+			expect(result.updatedRecurringEvent?.id).toBe('series-3')
+			expect(result.updatedRecurringEvent?.exdates).toContain(
+				targetInstance.start.toISOString()
+			)
+			expect(result.deletedEvents).toBeUndefined()
+		})
+
+		it('should remove stored override without changing base EXDATEs when scope this targets detached override', () => {
+			const occurrenceISO = '2025-01-13T10:00:00.000Z'
+			const baseEvent = createBaseRecurringEvent({
+				id: 'series-override-delete',
+				uid: 'series-override-delete@ilamy.calendar',
+				exdates: [occurrenceISO],
+			})
+			const overrideEvent: CalendarEvent = {
+				...baseEvent,
+				id: 'series-override-delete_modified',
+				start: baseEvent.start.add(1, 'week').add(1, 'hour'),
+				end: baseEvent.end.add(1, 'week').add(1, 'hour'),
+				recurrenceId: occurrenceISO,
+				rrule: undefined,
+			}
+
+			const result = deleteRecurringEvent({
+				targetEvent: overrideEvent,
+				currentEvents: [baseEvent, overrideEvent],
+				scope: 'this',
+			})
+
+			expect(result.events).toHaveLength(1)
+			expect(result.events[0].id).toBe('series-override-delete')
+			expect(result.events[0].exdates).toEqual([occurrenceISO])
+			expect(result.deletedEvents?.map((event) => event.id)).toEqual([
+				'series-override-delete_modified',
+			])
+			expect(result.updatedRecurringEvent).toBeUndefined()
 		})
 	})
 

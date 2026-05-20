@@ -233,6 +233,19 @@ expect(onEventDelete).not.toHaveBeenCalled()
 // Consumer: delete DB rows where uid === seriesUid && !rrule
 ```
 
+Scope `all` delete — expect **one** delete notification on the base series row (`rrule` + `uid`), not per override:
+
+```typescript
+const onEventDelete = mock(() => {})
+// ... render calendar with base + detached override, delete with scope: 'all'
+expect(onEventDelete).toHaveBeenCalledTimes(1)
+const deleted = onEventDelete.mock.calls[0][0]
+expect(deleted.rrule).toBeDefined()
+expect(deleted.recurrenceId).toBeUndefined()
+expect(deleted.uid).toBe('weekly-1@ilamy.calendar') // series uid
+// Consumer: delete whole series in your DB by deleted.id / deleted.uid
+```
+
 ## Mocking
 
 ### Bun's mock() function

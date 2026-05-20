@@ -577,7 +577,23 @@ deleteRecurringEvent({
   currentEvents: events,
   scope: 'all',
 })
+// Returns { events, updatedRecurringEvent?, deletedEvents? }; use .events for the new array.
+// updatedRecurringEvent: base row for scopes 'this' | 'following' (EXDATE / UNTIL).
+// deletedEvents: scope 'all' → [base row only]; scope 'this' on detached override → [override].
 ```
+
+#### `onEventDelete` / `onEventUpdate` when using `IlamyCalendar` props
+
+The engine maps handler results to props — do **not** assume every recurring delete calls `onEventDelete`:
+
+| User scope | `onEventUpdate` | `onEventDelete` |
+|------------|-----------------|-----------------|
+| `this` (generated occurrence) | Once — base + EXDATE | — |
+| `this` (stored override) | — | Once — override `id` |
+| `following` | Once — base + UNTIL | — |
+| **`all`** | — | **Once — base series row** |
+
+**Scope `all` — consumer deletes the whole series:** You receive a **single** `onEventDelete` with the persisted **base** event (`rrule` set, no `recurrenceId`, series `uid`). Use that `id` / `uid` to remove the master row and any related overrides or exceptions you stored for the same series. The calendar removes override rows from its internal `events` array but does **not** fire additional `onEventDelete` calls for them. Synthetic instance ids (`meeting-1_3`) are never sent on delete.
 
 #### rrule.js RRULE Generation:
 

@@ -756,7 +756,191 @@ describe('useCalendarEngine', () => {
 			expect(onEventDelete).toHaveBeenCalledTimes(1)
 			const deletedEvent = onEventDelete.mock.calls[0][0]
 			expect(deletedEvent.id).toBe('recurring-1')
+			expect(deletedEvent.uid).toBe('recurring-1@ilamy.calendar')
 			expect(result.current.rawEvents).toHaveLength(0)
+		})
+
+		it('should call onEventUpdate (not onEventDelete) when deleting recurring scope this', () => {
+			const onEventUpdate = vi.fn()
+			const onEventDelete = vi.fn()
+			const base = createRecurringEvent()
+			const events = [base]
+			const targetInstance: CalendarEvent = {
+				...base,
+				id: 'recurring-1_3',
+				start: base.start.add(2, 'week'),
+				end: base.end.add(2, 'week'),
+				rrule: undefined,
+			}
+			const { result } = renderHook(() =>
+				useCalendarEngine({
+					...defaultConfig,
+					events,
+					onEventUpdate,
+					onEventDelete,
+				})
+			)
+
+			act(() =>
+				result.current.deleteRecurringEvent(targetInstance, {
+					scope: 'this',
+					eventDate: targetInstance.start,
+				})
+			)
+
+			expect(onEventDelete).not.toHaveBeenCalled()
+			expect(onEventUpdate).toHaveBeenCalledTimes(1)
+			const updated = onEventUpdate.mock.calls[0][0]
+			expect(updated.id).toBe('recurring-1')
+			expect(updated.exdates).toContain(targetInstance.start.toISOString())
+		})
+
+		it('should call onEventDelete only when deleting stored override scope this', () => {
+			const onEventUpdate = vi.fn()
+			const onEventDelete = vi.fn()
+			const base = createRecurringEvent()
+			const occurrenceISO = base.start.add(1, 'week').toISOString()
+			const override: CalendarEvent = {
+				...base,
+				id: 'recurring-1_modified',
+				start: base.start.add(1, 'week').add(1, 'hour'),
+				end: base.end.add(1, 'week').add(1, 'hour'),
+				recurrenceId: occurrenceISO,
+				rrule: undefined,
+			}
+			const events = [{ ...base, exdates: [occurrenceISO] }, override]
+			const { result } = renderHook(() =>
+				useCalendarEngine({
+					...defaultConfig,
+					events,
+					onEventUpdate,
+					onEventDelete,
+				})
+			)
+
+			act(() =>
+				result.current.deleteRecurringEvent(override, {
+					scope: 'this',
+					eventDate: override.start,
+				})
+			)
+
+			expect(onEventDelete).toHaveBeenCalledTimes(1)
+			expect(onEventDelete.mock.calls[0][0].id).toBe('recurring-1_modified')
+			expect(onEventUpdate).not.toHaveBeenCalled()
+			expect(result.current.rawEvents).toHaveLength(1)
+			expect(result.current.rawEvents[0].id).toBe('recurring-1')
+			expect(result.current.rawEvents[0].exdates).toEqual([occurrenceISO])
+		})
+
+		it('should call onEventUpdate (not onEventDelete) when deleting recurring scope following', () => {
+			const onEventUpdate = vi.fn()
+			const onEventDelete = vi.fn()
+			const base = createRecurringEvent()
+			const events = [base]
+			const targetInstance: CalendarEvent = {
+				...base,
+				id: 'recurring-1_3',
+				start: base.start.add(2, 'week'),
+				end: base.end.add(2, 'week'),
+				rrule: undefined,
+			}
+			const { result } = renderHook(() =>
+				useCalendarEngine({
+					...defaultConfig,
+					events,
+					onEventUpdate,
+					onEventDelete,
+				})
+			)
+
+			act(() =>
+				result.current.deleteRecurringEvent(targetInstance, {
+					scope: 'following',
+					eventDate: targetInstance.start,
+				})
+			)
+
+			expect(onEventDelete).not.toHaveBeenCalled()
+			expect(onEventUpdate).toHaveBeenCalledTimes(1)
+			const updated = onEventUpdate.mock.calls[0][0]
+			expect(updated.id).toBe('recurring-1')
+			if (!updated.rrule) {
+				throw new Error('expected rrule')
+			}
+			expect(updated.rrule.until).toEqual(
+				dayjs('2025-01-19T23:59:59.999Z').toDate()
+			)
+		})
+
+		it('should pass onEventDelete the original series id for scope all', () => {
+			const onEventDelete = vi.fn()
+			const base = createRecurringEvent()
+			const events = [base]
+			const clicked: CalendarEvent = {
+				...base,
+				id: 'recurring-1_0',
+				start: base.start,
+				end: base.end,
+				uid: base.uid,
+				rrule: undefined,
+			}
+			const { result } = renderHook(() =>
+				useCalendarEngine({ ...defaultConfig, events, onEventDelete })
+			)
+
+			act(() =>
+				result.current.deleteRecurringEvent(clicked, {
+					scope: 'all',
+					eventDate: clicked.start,
+				})
+			)
+
+			expect(onEventDelete).toHaveBeenCalledTimes(1)
+			expect(onEventDelete.mock.calls[0][0].id).toBe('recurring-1')
+			expect(onEventDelete.mock.calls[0][0].uid).toBe(
+				'recurring-1@ilamy.calendar'
+			)
+			expect(result.current.rawEvents).toHaveLength(0)
+		})
+
+		it('should call onEventDelete once with base row when scope all removes series with overrides', () => {
+			const onEventDelete = vi.fn()
+			const base = createRecurringEvent()
+			const override: CalendarEvent = {
+				...base,
+				id: 'recurring-1_override',
+				title: 'Moved Meeting',
+				start: base.start.add(1, 'week').add(1, 'hour'),
+				end: base.end.add(1, 'week').add(1, 'hour'),
+				recurrenceId: base.start.add(1, 'week').toISOString(),
+				rrule: undefined,
+			}
+			const other = createEvent({ id: 'other' })
+			const events = [base, override, other]
+			const clicked: CalendarEvent = {
+				...base,
+				id: 'recurring-1_0',
+				rrule: undefined,
+			}
+			const { result } = renderHook(() =>
+				useCalendarEngine({ ...defaultConfig, events, onEventDelete })
+			)
+
+			act(() =>
+				result.current.deleteRecurringEvent(clicked, {
+					scope: 'all',
+					eventDate: clicked.start,
+				})
+			)
+
+			expect(onEventDelete).toHaveBeenCalledTimes(1)
+			expect(onEventDelete.mock.calls[0][0].id).toBe('recurring-1')
+			expect(onEventDelete.mock.calls[0][0].uid).toBe(
+				'recurring-1@ilamy.calendar'
+			)
+			expect(result.current.rawEvents).toHaveLength(1)
+			expect(result.current.rawEvents[0].id).toBe('other')
 		})
 
 		it('should delete recurring event with scope all even if uid is missing', () => {
@@ -779,6 +963,9 @@ describe('useCalendarEngine', () => {
 			)
 
 			expect(onEventDelete).toHaveBeenCalledTimes(1)
+			const deletedEvent = onEventDelete.mock.calls[0][0]
+			expect(deletedEvent.id).toBe(baseEvent.id)
+			expect(deletedEvent.uid).toBe('recurring-1@ilamy.calendar')
 			expect(result.current.rawEvents).toHaveLength(0)
 		})
 		it('should find parent recurring event', () => {
