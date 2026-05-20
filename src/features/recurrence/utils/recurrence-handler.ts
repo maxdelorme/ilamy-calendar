@@ -256,30 +256,54 @@ export const updateRecurringEvent = ({
 
 	switch (scope) {
 		case 'this': {
-			// "This event only" - Add EXDATE to base event and create standalone modified event
-			const targetEventStartISO = targetEvent.start.toISOString()
+			// "This event only" - EXDATE on base + detached override for this occurrence.
+			// Generated instance: add a new override row. Stored override: update in place.
+			const parentUid = getEventParentUID(baseEvent)
+			const isOverrideEvent = Boolean(
+				targetEvent.recurrenceId && !targetEvent.rrule
+			)
+			// && targetEvent.recurrenceId is dummy but necessary for type checking
+			const recurrenceId =
+				isOverrideEvent && targetEvent.recurrenceId
+					? targetEvent.recurrenceId
+					: targetEvent.start.toISOString()
+
 			const existingExdates = baseEvent.exdates || []
-			const updatedExdates = [...existingExdates, targetEventStartISO]
+			const nextExdates = existingExdates.includes(recurrenceId)
+				? existingExdates
+				: [...existingExdates, recurrenceId]
 
-			const updatedBaseEvent = {
+			updatedEvents[baseEventIndex] = {
 				...baseEvent,
-				exdates: updatedExdates,
+				exdates: nextExdates,
 			}
-			updatedEvents[baseEventIndex] = updatedBaseEvent
 
-			// Create standalone modified event with recurrenceId
-			const modifiedEventId = `${targetEvent.id}_modified_${Date.now()}`
-			const modifiedEvent: CalendarEvent = {
+			const detachedOverride: CalendarEvent = {
 				// @ts-expect-error TODO: fix the types
 				...omitKeys(targetEvent, ['width', 'height', 'top', 'left', 'right']),
 				...updates,
-				id: modifiedEventId,
-				recurrenceId: targetEventStartISO, // This marks it as a modified instance
-				uid: getEventParentUID(baseEvent), // Keep same UID as base event (iCalendar standard)
-				rrule: undefined, // Standalone events don't have RRULE
+				recurrenceId,
+				uid: parentUid,
+				rrule: undefined,
 			} as CalendarEvent
-			updatedEvents.push(modifiedEvent)
-			break
+
+			if (isOverrideEvent) {
+				const overrideIndex = updatedEvents.findIndex(
+					(e) => e.id === targetEvent.id
+				)
+				if (overrideIndex === -1) {
+					throw new Error('Detached override not found')
+				}
+				updatedEvents[overrideIndex] = detachedOverride
+			} else {
+				const modifiedEventId = `${targetEvent.id}_modified_${Date.now()}`
+				updatedEvents.push({
+					...detachedOverride,
+					id: modifiedEventId,
+				})
+			}
+
+			return updatedEvents
 		}
 
 		case 'following': {
